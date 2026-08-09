@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>事後確率計算機 ― 個別事件への当てはめの誤謬を可視化する</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap');
+
+  :root{
+    --bg: #0b0a08;
+    --surface: #161310;
+    --surface-2: #1e1a15;
+    --line: #332c22;
+    --ink: #ece4d3;
+    --ink-dim: #a89c85;
+    --gold: #c9a227;
+    --gold-soft: #8a7020;
+    --teal: #4d8f83;
+    --danger: #b1543a;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html,body{
+    margin:0; padding:0;
+    background:
+      radial-gradient(ellipse at 20% -10%, rgba(201,162,39,0.08), transparent 45%),
+      var(--bg);
+    color: var(--ink);
+    font-family: 'Noto Serif JP', serif;
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono{ font-family: 'DM Mono', monospace; }
+
+  .wrap{
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+  }
+
+  header{
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+
+  .eyebrow{
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  h1{
+    font-size: clamp(24px, 5vw, 32px);
+    font-weight: 900;
+    margin: 0 0 14px;
+    letter-spacing: 0.02em;
+  }
+
+  .lede{
+    color: var(--ink-dim);
+    font-size: 15px;
+    max-width: 58ch;
+  }
+
+  section{ margin-bottom: 44px; }
+
+  h2{
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.04em;
+    margin: 0 0 4px;
+    display:flex;
+    align-items:baseline;
+    gap: 10px;
+  }
+  h2 .num{
+    font-family:'DM Mono',monospace;
+    font-size:12px;
+    color: var(--gold-soft);
+  }
+
+  .section-desc{
+    color: var(--ink-dim);
+    font-size: 13.5px;
+    margin: 0 0 20px;
+  }
+
+  /* ---- scenario card ---- */
+  .card{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 24px 22px;
+  }
+
+  .scenario-line{
+    font-size: 14.5px;
+    margin: 0 0 10px;
+    padding-left: 14px;
+    border-left: 2px solid var(--gold-soft);
+    color: var(--ink);
+  }
+  .scenario-line.fallacy{
+    border-left-color: var(--danger);
+    color: #d9b9ab;
+  }
+
+  /* ---- sliders ---- */
+  .control{
+    margin-bottom: 22px;
+  }
+  .control-head{
+    display:flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .control-label{
+    font-size: 14px;
+  }
+  .control-label .sym{
+    font-family:'DM Mono',monospace;
+    color: var(--gold);
+    margin-right: 6px;
+  }
+  .control-value{
+    font-family:'DM Mono',monospace;
+    font-size: 15px;
+    color: var(--gold);
+    min-width: 52px;
+    text-align: right;
+  }
+
+  input[type=range]{
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    box-shadow: 0 0 0 1px var(--gold-soft);
+  }
+  input[type=range]::-moz-range-thumb{
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+  }
+
+  /* ---- bar visual ---- */
+  .bar-label-row{
+    display:flex;
+    justify-content: space-between;
+    font-family:'DM Mono',monospace;
+    font-size: 12px;
+    color: var(--ink-dim);
+    margin-bottom: 6px;
+  }
+  .bar-outer{
+    position: relative;
+    height: 40px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+    display:flex;
+  }
+  .bar-seg{
+    height: 100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'DM Mono',monospace;
+    font-size: 11px;
+    color: #0b0a08;
+    white-space: nowrap;
+    overflow:hidden;
+    transition: width 0.25s ease;
+  }
+  .bar-seg.hit{ background: var(--gold); font-weight:600; }
+  .bar-seg.miss{ background: var(--teal); color:#eaf3f1; }
+
+  .bar-caption{
+    display:flex;
+    justify-content: space-between;
+    font-family:'DM Mono',monospace;
+    font-size: 11.5px;
+    color: var(--ink-dim);
+    margin-top: 8px;
+  }
+  .bar-caption span.hit{ color: var(--gold); }
+  .bar-caption span.miss{ color: var(--teal); }
+
+  /* ---- result ---- */
+  .result{
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px dashed var(--line);
+    text-align: center;
+  }
+  .result-label{
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    font-family: 'DM Mono', monospace;
+  }
+  .result-value{
+    font-family: 'DM Mono', monospace;
+    font-size: 56px;
+    font-weight: 500;
+    color: var(--gold);
+    line-height: 1.1;
+    margin: 6px 0 4px;
+  }
+  .result-sub{
+    font-size: 13px;
+    color: var(--ink-dim);
+  }
+
+  /* ---- formula ---- */
+  .formula-box{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 22px;
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    overflow-x: auto;
+  }
+  .formula-row{ margin-bottom: 10px; white-space: nowrap; }
+  .formula-row.final{
+    color: var(--gold);
+    font-size: 16px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .frac{
+    display:inline-flex;
+    flex-direction:column;
+    align-items:center;
+    vertical-align: middle;
+    margin: 0 6px;
+  }
+  .frac .num, .frac .den{ padding: 0 4px; }
+  .frac .num{ border-bottom: 1px solid var(--ink); }
+
+  /* ---- glossary ---- */
+  table.glossary{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  table.glossary th, table.glossary td{
+    text-align: left;
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  table.glossary th{
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  table.glossary td.sym{
+    font-family: 'DM Mono', monospace;
+    color: var(--gold);
+    white-space: nowrap;
+    width: 92px;
+  }
+  table.glossary tr:last-child td{ border-bottom: none; }
+
+  footer{
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--ink-dim);
+    font-family: 'DM Mono', monospace;
+    text-align: center;
+  }
+
+  @media (max-width: 480px){
+    .result-value{ font-size: 44px; }
+    .formula-box{ font-size: 12.5px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Bayes' Theorem / 個別事件への当てはめ</div>
+    <h1>事後確率計算機</h1>
+    <p class="lede">
+      「過去の統計で多かった特徴を、目の前の一件に当てはめる」推論がどれほど確率を歪めるかを、
+      ベイズの定理で数値化する。スライダーを動かして前提を変えると、結果がどう動くかを確認できる。
+    </p>
+  </header>
+
+  <section>
+    <h2><span class="num">01</span>誤った推論の型</h2>
+    <div class="card">
+      <p class="scenario-line">
+        実際に問題行為Aをしたと確認された過去100件のうち、80件でBという特徴が確認された（という統計がある）＝P(B|A)≈0.80。
+      </p>
+      <p class="scenario-line fallacy">
+        今回のX氏にもBという特徴がある → だからX氏も80%の確率でAをしたはずだ。
+      </p>
+      <p class="scenario-line">
+        この推論はP(B|A)（問題行為をした人の中で特徴Bを持つ割合）を、そのままP(A|B)（特徴Bを持つ人が実際に問題行為Aをした確率）として扱っている。
+        両者は一致するとは限らず、事前確率P(A)と誤検出率P(B|¬A)を踏まえないと後者は求まらない。
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">02</span>パラメータを動かす</h2>
+    <p class="section-desc">3つの確率を入力すると、事後確率 P(A|B) が自動計算される。</p>
+    <div class="card">
+
+      <div class="control">
+        <div class="control-head">
+          <span class="control-label"><span class="sym">P(A)</span>Aである事前確率</span>
+          <span class="control-value mono" id="val-pa">0.20</span>
+        </div>
+        <input type="range" id="pa" min="0.01" max="0.99" step="0.01" value="0.20">
+      </div>
+
+      <div class="control">
+        <div class="control-head">
+          <span class="control-label"><span class="sym">P(B|A)</span>Aである人物がBを持つ確率</span>
+          <span class="control-value mono" id="val-pba">0.80</span>
+        </div>
+        <input type="range" id="pba" min="0.01" max="0.99" step="0.01" value="0.80">
+      </div>
+
+      <div class="control">
+        <div class="control-head">
+          <span class="control-label"><span class="sym">P(B|¬A)</span>Aでない人物がBを持つ確率</span>
+          <span class="control-value mono" id="val-pbna">0.10</span>
+        </div>
+        <input type="range" id="pbna" min="0.01" max="0.99" step="0.01" value="0.10">
+      </div>
+
+      <div class="bar-label-row">
+        <span>P(B) の内訳</span>
+        <span id="pb-total">0.24</span>
+      </div>
+      <div class="bar-outer">
+        <div class="bar-seg hit" id="seg-hit" style="width:67%">0.16</div>
+        <div class="bar-seg miss" id="seg-miss" style="width:33%">0.08</div>
+        <div class="bar-seg" style="background:transparent; flex:1;"></div>
+      </div>
+      <div class="bar-caption">
+        <span class="hit">■ P(B|A)P(A) ― Aかつ B</span>
+        <span class="miss">■ P(B|¬A)P(¬A) ― ¬Aかつ B</span>
+      </div>
+
+      <div class="result">
+        <div class="result-label">P(A|B) ― 事後確率</div>
+        <div class="result-value" id="result">0.67</div>
+        <div class="result-sub" id="result-sub">
+          特徴Bを持つ人物のうち、実際にAである割合は約68%
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">03</span>計算過程</h2>
+    <div class="formula-box">
+      <div class="formula-row">P(A|B) = P(B|A)P(A) / P(B)</div>
+      <div class="formula-row">P(B) = P(B|A)P(A) + P(B|¬A)P(¬A)</div>
+      <div class="formula-row" id="calc-pb">P(B) = 0.80 × 0.20 + 0.10 × 0.80 = 0.24</div>
+      <div class="formula-row final" id="calc-final">P(A|B) = (0.80 × 0.20) / 0.24 = 0.67</div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">05</span>この計算機の限界 ― 準拠集団の問題</h2>
+    <p class="section-desc">
+      P(A)・P(B|A)・P(B|¬A)を入力すればP(A|B)は数学的に一意に決まる。だが、その入力値自体の妥当性をこの式は保証しない。
+    </p>
+    <div class="card">
+      <p class="scenario-line">
+        P(A)は「その人物が本質的にAである確率」ではない。「その人物が属すると想定した母集団の中で、実際にAである人の割合」である。
+        個体の内面を測る神の視点は存在せず、あるのは集団の頻度だけである。
+      </p>
+      <p class="scenario-line">
+        問題は、その母集団をどう区切るかに唯一の正解がないことにある。全体で区切るか、ある属性を持つ集団に絞るかで、P(A)はいくらでも変わる。
+        そして「ある属性を持つ集団に絞ってよいか」という判断は、AとBの関連性についてすでに何らかの前提を置いている。
+        これは統計学・確率哲学で準拠集団の問題（reference class problem）と呼ばれ、一般には解決されていない。
+      </p>
+      <p class="scenario-line fallacy">
+        この式が正しく計算されていることは、入力された母集団の切り方が妥当であることを何ら意味しない。
+        数式の正しさは、恣意的に選ばれた母集団による偏見を数値の権威で正当化する温床にもなり得る。
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">06</span>記号解説</h2>
+    <p class="section-desc">
+      Aを「真の状態（実際に問題行為をしているか）」、Bを「問題行為をした人にありがちな特徴」として読む。
+    </p>
+    <table class="glossary">
+      <tr><th>記号</th><th>意味</th></tr>
+      <tr><td class="sym">A</td><td>実際に問題行為をしている（真の状態・知りたい対象）</td></tr>
+      <tr><td class="sym">¬A</td><td>Aでない（実際には問題行為をしていない）</td></tr>
+      <tr><td class="sym">B</td><td>その人物に「問題行為をした人にありがちな特徴」がある</td></tr>
+      <tr><td class="sym">P(A)</td><td>そもそもAである事前確率（特徴を確認する前の、Aである割合）</td></tr>
+      <tr><td class="sym">P(B|A)</td><td>Aである人物が、Bという特徴を持つ確率</td></tr>
+      <tr><td class="sym">P(B|¬A)</td><td>Aでない人物が、Bという特徴を持つ確率（誤検出にあたる）</td></tr>
+      <tr><td class="sym">P(B)</td><td>集団全体でBという特徴が現れる確率</td></tr>
+      <tr><td class="sym">P(A|B)</td><td>Bという特徴を持つ人物が、実際にAである確率（事後確率＝求める答え）</td></tr>
+    </table>
+  </section>
+
+  <footer>bayes theorem — individual case fallacy visualizer</footer>
+</div>
+
+<script>
+  const pa = document.getElementById('pa');
+  const pba = document.getElementById('pba');
+  const pbna = document.getElementById('pbna');
+
+  const valPa = document.getElementById('val-pa');
+  const valPba = document.getElementById('val-pba');
+  const valPbna = document.getElementById('val-pbna');
+
+  const segHit = document.getElementById('seg-hit');
+  const segMiss = document.getElementById('seg-miss');
+  const pbTotal = document.getElementById('pb-total');
+  const result = document.getElementById('result');
+  const resultSub = document.getElementById('result-sub');
+  const calcPb = document.getElementById('calc-pb');
+  const calcFinal = document.getElementById('calc-final');
+
+  function fmt(n){ return n.toFixed(2); }
+
+  function update(){
+    const A = parseFloat(pa.value);
+    const BgA = parseFloat(pba.value);
+    const BgNA = parseFloat(pbna.value);
+    const notA = 1 - A;
+
+    valPa.textContent = fmt(A);
+    valPba.textContent = fmt(BgA);
+    valPbna.textContent = fmt(BgNA);
+
+    const hit = BgA * A;          // P(B|A)P(A)
+    const miss = BgNA * notA;     // P(B|¬A)P(¬A)
+    const pb = hit + miss;        // P(B)
+    const posterior = pb > 0 ? hit / pb : 0;
+
+    const hitPct = pb > 0 ? (hit / pb) * 100 : 0;
+    const missPct = pb > 0 ? (miss / pb) * 100 : 0;
+    const scale = pb; // total bar width scaled to P(B) itself (max 1)
+
+    segHit.style.width = (hitPct * scale) + '%';
+    segMiss.style.width = (missPct * scale) + '%';
+    segHit.textContent = fmt(hit);
+    segMiss.textContent = fmt(miss);
+
+    pbTotal.textContent = fmt(pb);
+    result.textContent = fmt(posterior);
+    resultSub.textContent = `特徴Bを持つ人物のうち、実際にAである割合は約${Math.round(posterior*100)}%`;
+
+    calcPb.textContent = `P(B) = ${fmt(BgA)} × ${fmt(A)} + ${fmt(BgNA)} × ${fmt(notA)} = ${fmt(pb)}`;
+    calcFinal.textContent = `P(A|B) = (${fmt(BgA)} × ${fmt(A)}) / ${fmt(pb)} = ${fmt(posterior)}`;
+  }
+
+  [pa, pba, pbna].forEach(el => el.addEventListener('input', update));
+  update();
+</script>
+</body>
+</html>
