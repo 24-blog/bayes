@@ -1,4 +1,4 @@
-[![License](https://img.shields.io/github/license/24-blog/lsc)](LICENSE)
+[![License](https://img.shields.io/github/license/24-blog/bayes)](LICENSE)
 
 
 ⚠️COPYRIGHT<br>
